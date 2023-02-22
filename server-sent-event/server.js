@@ -45,6 +45,7 @@ function accept(req, res) {
 
 if (!module.parent) {
   http.createServer(accept).listen(8080);
+  console.log('http://localhost:8080')
 } else {
   exports.accept = accept;
 }

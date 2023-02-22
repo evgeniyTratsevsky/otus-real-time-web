@@ -15,14 +15,18 @@ let socket = new WebSocket(url);
 document.forms.publish.onsubmit = function() {
   let outgoingMessage = this.message.value;
 
-  socket.send(outgoingMessage);
+  const message = {
+    message: outgoingMessage
+  }
+  socket.send(JSON.stringify(message));
   return false;
 };
 
 // прослушка входящих сообщений
 socket.onmessage = function(event) {
   let incomingMessage = event.data;
-  showMessage(incomingMessage);
+  const message = JSON.parse(event.data).message
+  showMessage(message);
 };
 // socket.addEventListener('message', (event) => {
 //

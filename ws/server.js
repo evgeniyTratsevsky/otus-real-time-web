@@ -60,6 +60,7 @@ let log;
 if (!module.parent) {
   log = console.log;
   http.createServer(accept).listen(8080);
+  console.log('http://localhost:8080')
 } else {
   // для размещения на javascript.info
   log = function() {};

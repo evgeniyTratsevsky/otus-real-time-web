@@ -1,0 +1,18 @@
+{
+    "name": "long-polling-chat",
+    "version": "1.0.0",
+    "description": "A simple long polling chat server using Express.",
+    "main": "server.js",
+    "requires": true,
+    "scripts": {
+        "start": "node server.js"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "cors": "2.8.5",
+        "delay": "5.0.0",
+        "express": "^5.1.0",
+        "long-polling-chat": "file:"
+    }
+}

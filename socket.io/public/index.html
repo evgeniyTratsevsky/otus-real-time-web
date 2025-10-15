@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.io Chat - Namespaces & Rooms</title>
+    <!-- External CSS -->
+    <link rel="stylesheet" href="index.css">
+    <!-- Load Socket.io from CDN for Live Server compatibility -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        // Verify Socket.io is loaded
+        if (typeof io === 'undefined') {
+            console.error('Socket.io failed to load from CDN');
+        } else {
+            console.log('Socket.io loaded successfully');
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Socket.io Chat - Namespaces & Rooms Demo</h1>
+        
+        <div class="info-box">
+            <h3>Socket.io Features:</h3>
+            <p><strong>Namespace:</strong> Used for separating logic on the server</p>
+            <p><strong>Room:</strong> Logical groups within a namespace</p>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('general')">General Chat</div>
+            <div class="tab" onclick="switchTab('admin')">Admin</div>
+            <div class="tab" onclick="switchTab('support')">Support</div>
+        </div>
+
+        <!-- General Chat Tab -->
+        <div id="general-tab" class="tab-content active">
+            <div class="namespace-section">
+                <h3>General Namespace (/general)</h3>
+                <div class="form-group">
+                    <label>Username:</label>
+                    <input type="text" id="generalUsername" placeholder="Enter your username" value="User1">
+                </div>
+                <button id="generalConnect" onclick="connectGeneral()">Connect to General</button>
+                <button id="generalDisconnect" onclick="disconnectGeneral()" disabled>Disconnect</button>
+            </div>
+
+            <div class="room-section">
+                <h3>Rooms (Logical groups within namespace)</h3>
+                <div class="form-group">
+                    <label>Select Room:</label>
+                    <select id="roomSelect">
+                        <option value="general">General</option>
+                        <option value="tech">Tech</option>
+                        <option value="gaming">Gaming</option>
+                        <option value="random">Random</option>
+                    </select>
+                </div>
+                <button id="joinRoom" onclick="joinRoom()" disabled>Join Room</button>
+                <button id="leaveRoom" onclick="leaveRoom()" disabled>Leave Room</button>
+            </div>
+
+            <div id="generalStatus" class="status disconnected">Disconnected</div>
+            <div class="messages" id="generalMessages"></div>
+            <div>
+                <input type="text" id="generalMessage" placeholder="Type your message..." disabled>
+                <button id="sendGeneral" onclick="sendGeneralMessage()" disabled>Send to Room</button>
+                <button id="broadcastGeneral" onclick="sendBroadcastMessage()" disabled>Broadcast to All</button>
+            </div>
+        </div>
+
+        <!-- Admin Tab -->
+        <div id="admin-tab" class="tab-content">
+            <div class="namespace-section">
+                <h3>Admin Namespace (/admin)</h3>
+                <div class="form-group">
+                    <label>Admin Name:</label>
+                    <input type="text" id="adminName" placeholder="Enter admin name" value="Admin1">
+                </div>
+                <button id="adminConnect" onclick="connectAdmin()">Connect as Admin</button>
+                <button id="adminDisconnect" onclick="disconnectAdmin()" disabled>Disconnect</button>
+            </div>
+
+            <div id="adminStatus" class="status disconnected">Disconnected</div>
+            <div class="messages" id="adminMessages"></div>
+            <div>
+                <input type="text" id="adminMessage" placeholder="Type admin message..." disabled>
+                <button id="sendAdmin" onclick="sendAdminMessage()" disabled>Send to Admins</button>
+                <button id="announceAdmin" onclick="sendAnnouncement()" disabled>Announce to All</button>
+            </div>
+        </div>
+
+        <!-- Support Tab -->
+        <div id="support-tab" class="tab-content">
+            <div class="namespace-section">
+                <h3>Support Namespace (/support)</h3>
+                <div class="form-group">
+                    <label>Agent Name:</label>
+                    <input type="text" id="supportName" placeholder="Enter agent name" value="Agent1">
+                </div>
+                <button id="supportConnect" onclick="connectSupport()">Connect as Support</button>
+                <button id="supportDisconnect" onclick="disconnectSupport()" disabled>Disconnect</button>
+            </div>
+
+            <div id="supportStatus" class="status disconnected">Disconnected</div>
+            <div class="messages" id="supportMessages"></div>
+            <div>
+                <input type="text" id="supportMessage" placeholder="Type support message..." disabled>
+                <button id="sendSupport" onclick="sendSupportMessage()" disabled>Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Socket connections for different namespaces
+        let generalSocket = null;
+        let adminSocket = null;
+        let supportSocket = null;
+
+        // Current room for general namespace
+        let currentRoom = null;
+
+        // ===== GENERAL NAMESPACE =====
+        function connectGeneral() {
+            const username = document.getElementById('generalUsername').value.trim();
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            // Check if Socket.io is loaded
+            if (typeof io === 'undefined') {
+                alert('Socket.io library not loaded. Please refresh the page and make sure the server is running.');
+                console.error('Socket.io library not found');
+                return;
+            }
+
+            console.log('Connecting to general namespace...');
+            generalSocket = io('http://localhost:3000/general');
+            
+            generalSocket.on('connect', () => {
+                updateGeneralStatus('connected');
+                addGeneralMessage(`Connected to general namespace as ${username}`, 'system');
+            });
+
+            generalSocket.on('room-joined', (data) => {
+                addGeneralMessage(data.message, 'system');
+                currentRoom = data.room;
+                document.getElementById('joinRoom').disabled = true;
+                document.getElementById('leaveRoom').disabled = false;
+                document.getElementById('generalMessage').disabled = false;
+                document.getElementById('sendGeneral').disabled = false;
+                document.getElementById('broadcastGeneral').disabled = false;
+            });
+
+            generalSocket.on('user-joined', (data) => {
+                addGeneralMessage(data.message, 'system');
+            });
+
+            generalSocket.on('user-left', (data) => {
+                addGeneralMessage(data.message, 'system');
+            });
+
+            generalSocket.on('chat-message', (data) => {
+                const isOwnMessage = data.username === username;
+                addGeneralMessage(`[${data.room}] ${data.username}: ${data.message} (${data.timestamp})`, 
+                    isOwnMessage ? 'user' : 'other');
+            });
+
+            generalSocket.on('broadcast-message', (data) => {
+                console.log('Received broadcast message:', data);
+                const isOwnMessage = data.username === username;
+                addGeneralMessage(`[BROADCAST] ${data.username}: ${data.message} (${data.timestamp})`, 
+                    isOwnMessage ? 'user' : 'system');
+            });
+
+            generalSocket.on('admin-announcement', (data) => {
+                addGeneralMessage(`[ADMIN ANNOUNCEMENT] ${data.username}: ${data.message} (${data.timestamp})`, 'admin');
+            });
+
+            generalSocket.on('disconnect', () => {
+                updateGeneralStatus('disconnected');
+                addGeneralMessage('Disconnected from general namespace', 'system');
+            });
+        }
+
+        function disconnectGeneral() {
+            if (generalSocket) {
+                generalSocket.disconnect();
+                generalSocket = null;
+            }
+            updateGeneralStatus('disconnected');
+            document.getElementById('joinRoom').disabled = true;
+            document.getElementById('leaveRoom').disabled = true;
+            document.getElementById('generalMessage').disabled = true;
+            document.getElementById('sendGeneral').disabled = true;
+            currentRoom = null;
+        }
+
+        function joinRoom() {
+            const room = document.getElementById('roomSelect').value;
+            const username = document.getElementById('generalUsername').value;
+            
+            if (generalSocket && generalSocket.connected) {
+                generalSocket.emit('join-room', room, username);
+            }
+        }
+
+        function leaveRoom() {
+            if (generalSocket && generalSocket.connected) {
+                generalSocket.emit('leave-room');
+                document.getElementById('joinRoom').disabled = false;
+                document.getElementById('leaveRoom').disabled = true;
+                document.getElementById('generalMessage').disabled = true;
+                document.getElementById('sendGeneral').disabled = true;
+                document.getElementById('broadcastGeneral').disabled = true;
+                currentRoom = null;
+            }
+        }
+
+        function sendGeneralMessage() {
+            const message = document.getElementById('generalMessage').value.trim();
+            if (message && generalSocket && generalSocket.connected) {
+                generalSocket.emit('chat-message', { message: message });
+                document.getElementById('generalMessage').value = '';
+            }
+        }
+
+        function sendBroadcastMessage() {
+            const message = document.getElementById('generalMessage').value.trim();
+            if (message && generalSocket && generalSocket.connected) {
+                console.log('Sending broadcast message:', message);
+                generalSocket.emit('broadcast-message', { message: message });
+                document.getElementById('generalMessage').value = '';
+            } else {
+                console.log('Cannot send broadcast - socket not connected or no message');
+            }
+        }
+
+        // ===== ADMIN NAMESPACE =====
+        function connectAdmin() {
+            const adminName = document.getElementById('adminName').value.trim();
+            if (!adminName) {
+                alert('Please enter an admin name');
+                return;
+            }
+
+            adminSocket = io('http://localhost:3000/admin');
+            
+            adminSocket.on('connect', () => {
+                updateAdminStatus('connected');
+                adminSocket.emit('admin-join', adminName);
+            });
+
+            adminSocket.on('admin-connected', (data) => {
+                addAdminMessage(data.message, 'system');
+            });
+
+            adminSocket.on('admin-joined', (data) => {
+                addAdminMessage(data.message, 'system');
+            });
+
+            adminSocket.on('admin-left', (data) => {
+                addAdminMessage(data.message, 'system');
+            });
+
+            adminSocket.on('admin-message', (data) => {
+                const isOwnMessage = data.adminName === adminName;
+                addAdminMessage(`${data.adminName}: ${data.message} (${data.timestamp})`, 
+                    isOwnMessage ? 'user' : 'admin');
+            });
+
+            adminSocket.on('disconnect', () => {
+                updateAdminStatus('disconnected');
+                addAdminMessage('Disconnected from admin namespace', 'system');
+            });
+        }
+
+        function disconnectAdmin() {
+            if (adminSocket) {
+                adminSocket.disconnect();
+                adminSocket = null;
+            }
+            updateAdminStatus('disconnected');
+        }
+
+        function sendAdminMessage() {
+            const message = document.getElementById('adminMessage').value.trim();
+            if (message && adminSocket && adminSocket.connected) {
+                adminSocket.emit('admin-message', { message: message });
+                document.getElementById('adminMessage').value = '';
+            }
+        }
+
+        function sendAnnouncement() {
+            const message = document.getElementById('adminMessage').value.trim();
+            if (message && adminSocket && adminSocket.connected) {
+                adminSocket.emit('send-announcement', { message: message });
+                document.getElementById('adminMessage').value = '';
+            }
+        }
+
+        // ===== SUPPORT NAMESPACE =====
+        function connectSupport() {
+            const supportName = document.getElementById('supportName').value.trim();
+            if (!supportName) {
+                alert('Please enter a support agent name');
+                return;
+            }
+
+            supportSocket = io('http://localhost:3000/support');
+            
+            supportSocket.on('connect', () => {
+                updateSupportStatus('connected');
+                supportSocket.emit('support-join', supportName);
+            });
+
+            supportSocket.on('support-connected', (data) => {
+                addSupportMessage(data.message, 'system');
+            });
+
+            supportSocket.on('agent-joined', (data) => {
+                addSupportMessage(data.message, 'system');
+            });
+
+            supportSocket.on('agent-left', (data) => {
+                addSupportMessage(data.message, 'system');
+            });
+
+            supportSocket.on('support-message', (data) => {
+                const isOwnMessage = data.agentName === supportName;
+                addSupportMessage(`${data.agentName}: ${data.message} (${data.timestamp})`, 
+                    isOwnMessage ? 'user' : 'support');
+            });
+
+            supportSocket.on('disconnect', () => {
+                updateSupportStatus('disconnected');
+                addSupportMessage('Disconnected from support namespace', 'system');
+            });
+        }
+
+        function disconnectSupport() {
+            if (supportSocket) {
+                supportSocket.disconnect();
+                supportSocket = null;
+            }
+            updateSupportStatus('disconnected');
+        }
+
+        function sendSupportMessage() {
+            const message = document.getElementById('supportMessage').value.trim();
+            if (message && supportSocket && supportSocket.connected) {
+                supportSocket.emit('support-message', { message: message });
+                document.getElementById('supportMessage').value = '';
+            }
+        }
+
+        // ===== UTILITY FUNCTIONS =====
+        function updateGeneralStatus(status) {
+            const statusDiv = document.getElementById('generalStatus');
+            const connectBtn = document.getElementById('generalConnect');
+            const disconnectBtn = document.getElementById('generalDisconnect');
+            const joinBtn = document.getElementById('joinRoom');
+            
+            if (status === 'connected') {
+                statusDiv.textContent = 'Connected to General Namespace';
+                statusDiv.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                joinBtn.disabled = false;
+            } else {
+                statusDiv.textContent = 'Disconnected';
+                statusDiv.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                joinBtn.disabled = true;
+            }
+        }
+
+        function updateAdminStatus(status) {
+            const statusDiv = document.getElementById('adminStatus');
+            const connectBtn = document.getElementById('adminConnect');
+            const disconnectBtn = document.getElementById('adminDisconnect');
+            const sendBtn = document.getElementById('sendAdmin');
+            const messageInput = document.getElementById('adminMessage');
+            
+            if (status === 'connected') {
+                statusDiv.textContent = 'Connected to Admin Namespace';
+                statusDiv.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                sendBtn.disabled = false;
+                document.getElementById('announceAdmin').disabled = false;
+                messageInput.disabled = false;
+            } else {
+                statusDiv.textContent = 'Disconnected';
+                statusDiv.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendBtn.disabled = true;
+                document.getElementById('announceAdmin').disabled = true;
+                messageInput.disabled = true;
+            }
+        }
+
+        function updateSupportStatus(status) {
+            const statusDiv = document.getElementById('supportStatus');
+            const connectBtn = document.getElementById('supportConnect');
+            const disconnectBtn = document.getElementById('supportDisconnect');
+            const sendBtn = document.getElementById('sendSupport');
+            const messageInput = document.getElementById('supportMessage');
+            
+            if (status === 'connected') {
+                statusDiv.textContent = 'Connected to Support Namespace';
+                statusDiv.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.disabled = false;
+            } else {
+                statusDiv.textContent = 'Disconnected';
+                statusDiv.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendBtn.disabled = true;
+                messageInput.disabled = true;
+            }
+        }
+
+        function addGeneralMessage(message, type) {
+            addMessage('generalMessages', message, type);
+        }
+
+        function addAdminMessage(message, type) {
+            addMessage('adminMessages', message, type);
+        }
+
+        function addSupportMessage(message, type) {
+            addMessage('supportMessages', message, type);
+        }
+
+        function addMessage(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = message;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Handle Enter key for message inputs
+        document.getElementById('generalMessage').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendGeneralMessage();
+            }
+        });
+
+        document.getElementById('adminMessage').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendAdminMessage();
+            }
+        });
+
+        document.getElementById('supportMessage').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendSupportMessage();
+            }
+        });
+    </script>
+</body>
+</html>

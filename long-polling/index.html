@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Длинные запросы</title>
+</head>
+
+<body>
+    <h1>Пример длинного запроса</h1>
+    <div id="data"></div>
+
+    <script>
+        async function longPoll() {
+            try {
+                const response = await fetch('http://localhost:3000/long-poll');
+                const result = await response.json();
+
+                if (result.success) {
+                    const dataDiv = document.getElementById('data');
+                    const newData = document.createElement('p');
+                    newData.textContent = result.data;
+                    dataDiv.appendChild(newData);
+                }
+
+                //Сразу отправляем следующий запрос
+                longPoll();
+            } catch (error) {
+                console.error('Ошибка при длинном запросе:', error);
+                setTimeout(longPoll, 5000); //Повторить попытку через 5 секунд
+            }
+        }
+
+        //Запуск длинного запроса
+        longPoll();
+    </script>
+</body>
+
+</html>

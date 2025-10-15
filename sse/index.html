@@ -1,0 +1,35 @@
+<doctype html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Пример SSE</title>
+    </head>
+
+    <body>
+      <h1>Пример SSE</h1>
+      <div id="messages"></div>
+      <script>
+        //Создание нового EventSource
+        // https://developer.mozilla.org/en-US/docs/Web/API/EventSource
+        
+        const eventSource = new EventSource("http://localhost:3000/events");
+        withCredentials = true;
+
+        //Обработка сообщений от сервера
+        eventSource.onmessage = function (event) {
+          const messageDiv = document.getElementById("messages");
+          const newMessage = document.createElement("p");
+          newMessage.textContent = event.data;
+          messageDiv.appendChild(newMessage);
+        };
+
+        //Обработка ошибок
+        eventSource.onerror = function (error) {
+          console.log(error.message);
+          console.error("Ошибка при получении данных:", error);
+        };
+      </script>
+    </body>
+  </html></doctype
+>

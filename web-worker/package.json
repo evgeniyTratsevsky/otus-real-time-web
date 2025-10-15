@@ -16,6 +16,7 @@
     "browser-sync": "^2.27.11"
   },
   "dependencies": {
+    "web-worker": "file:",
     "ws": "^8.12.1"
   }
 }
